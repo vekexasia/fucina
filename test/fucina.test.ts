@@ -495,3 +495,54 @@ test("invalid label is blocked and cleaned up", async () => {
   assert.ok(calls.some((args) => args.join(" ") === "issue edit 9 --add-label fucina:blocked"));
   assert.ok(calls.some((args) => args.join(" ") === "issue edit 9 --remove-label fucina:in-progress"));
 });
+
+test("packaged CLI smoke test runs end-to-end", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { chmodSync, realpathSync } = await import("node:fs");
+  const { fileURLToPath } = await import("node:url");
+  const { dirname } = await import("node:path");
+
+  const testDir = dirname(fileURLToPath(import.meta.url));
+  const projectRoot = join(testDir, "..");
+
+  execFileSync("npm", ["run", "build"], { cwd: projectRoot, stdio: "inherit" });
+
+  const repo = tmpRepo();
+  const ghLog = join(repo, "gh-calls.log");
+  const fakeGh = join(repo, "gh");
+  writeFileSync(fakeGh, `#!/bin/bash\necho "$@" >> ${ghLog}\nif [[ "$*" == *".permission"* ]]; then echo "write"; fi\n`);
+  chmodSync(fakeGh, 0o755);
+
+  const eventJson = join(repo, "event.json");
+  writeFileSync(eventJson, JSON.stringify({
+    action: "labeled",
+    label: { name: "fucina:explore" },
+    sender: { login: "tester" },
+    issue: { number: 42, title: "Test issue", user: { login: "tester" }, body: "Test body" },
+  }));
+
+  const env = {
+    ...process.env,
+    PATH: `${repo}:${process.env.PATH}`,
+    GITHUB_EVENT_PATH: eventJson,
+    GITHUB_EVENT_NAME: "issues",
+    FUCINA_SIMULATE_AGENT_OUTPUT: '<fucina>{"summary":"Smoke test passed"}</fucina>',
+  };
+
+  try {
+    execFileSync("node", [join(projectRoot, "dist", "cli.js"), "run"], { cwd: repo, env });
+  } catch (error: unknown) {
+    if (error && typeof error === "object" && "stderr" in error) {
+      throw new Error(`CLI failed: ${String((error as { stderr?: Buffer }).stderr)}`);
+    }
+    throw error;
+  }
+
+  const calls = readFileSync(ghLog, "utf8");
+  assert.match(calls, /issue edit 42 --remove-label fucina:explore/);
+  assert.match(calls, /issue edit 42 --add-label fucina:in-progress/);
+  assert.match(calls, /issue comment 42.*Smoke test passed/);
+  assert.match(calls, /issue edit 42 --remove-label fucina:in-progress/);
+
+  rmSync(repo, { recursive: true, force: true });
+});
