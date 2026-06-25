@@ -19,3 +19,19 @@ export function assertAuthorizedWithGh(event: FucinaEvent, runGh: (args: string[
   const value = output.startsWith("{") ? JSON.parse(output).permission : output;
   if (!writePermissions.has(value)) throw new Error(`${event.actor} does not have write access to ${repo}`);
 }
+
+export function isAuthorizedActor(actor: string, runGh: (args: string[]) => string): boolean {
+  try {
+    const allowed = process.env.FUCINA_ALLOWED_ACTORS?.split(",").map((name) => name.trim()).filter(Boolean);
+    if (allowed?.length) {
+      return allowed.includes(actor);
+    }
+
+    const repo = process.env.GITHUB_REPOSITORY ?? "OWNER/REPO";
+    const output = runGh(["api", `repos/${repo}/collaborators/${actor}/permission`, "--jq", ".permission"]).trim();
+    const value = output.startsWith("{") ? JSON.parse(output).permission : output;
+    return writePermissions.has(value);
+  } catch {
+    return false;
+  }
+}

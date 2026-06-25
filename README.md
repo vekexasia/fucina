@@ -46,6 +46,29 @@ Optional secret:
 
 - `AGENT_PAT` - Fucina uses `AGENT_PAT || GITHUB_TOKEN` and fails clearly when a PAT is required.
 
+## Sensitive instruction path protection
+
+Fucina protects files that can influence agent instructions from prompt injection by untrusted PR authors.
+
+The `sensitiveInstructionPaths` config key defaults to:
+- `.fucina/**`
+- `.github/workflows/**`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `.claude/**`
+- `.codex/**`
+- `.pi/**`
+
+This list can be completely overridden in `.fucina/config.json`, but not via environment variables.
+
+When `fucina:review` runs on a PR:
+1. If the PR modifies files matching sensitive paths AND the PR author is not an Authorized Actor, the review blocks with `fucina:blocked`
+2. An error comment is posted with the exact command to approve: `/fucina trust-instructions <full-sha>`
+3. An Authorized Actor can post that slash command as a PR comment to explicitly trust the changes
+4. The approval is SHA-specific; if the PR is updated, a new approval is required
+
+This prevents untrusted contributors from injecting malicious instructions into agent workflows while allowing Authorized Actors to explicitly review and approve instruction changes.
+
 ## Local development
 
 ```bash
