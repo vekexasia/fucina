@@ -8,7 +8,7 @@ import { labels } from "../src/labels.js";
 import { install, upgrade } from "../src/install.js";
 import { loadConfig } from "../src/config.js";
 import { runEvent } from "../src/run.js";
-import { agentCliPackage } from "../src/agent.js";
+import { agentCliPackage, parseFucinaJson } from "../src/agent.js";
 
 function tmpRepo() {
   const dir = mkdtempSync(join(tmpdir(), "fucina-"));
@@ -29,6 +29,11 @@ test("MVP labels contain only fucina operational labels", () => {
 
 test("claudeCode installs the pinned Claude CLI package", () => {
   assert.equal(agentCliPackage("claudeCode"), "@anthropic-ai/claude-code");
+});
+
+test("agent JSON parser tolerates multiline summary strings", () => {
+  const parsed = parseFucinaJson('<fucina>{"summary":"first line\nsecond line"}</fucina>');
+  assert.equal(parsed.summary, "first line\nsecond line");
 });
 
 test("install writes config and three least-privilege workflows without overwriting", () => {

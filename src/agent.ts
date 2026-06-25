@@ -26,5 +26,11 @@ export function installAgentCli(agent: string, version: string) {
 export function parseFucinaJson(stdout: string) {
   const match = stdout.match(/<fucina>([\s\S]*?)<\/fucina>/);
   if (!match) throw new Error("Agent output did not include <fucina> JSON");
-  return JSON.parse(match[1]);
+  try {
+    return JSON.parse(match[1]);
+  } catch (error) {
+    const summary = match[1].match(/"summary"\s*:\s*"([\s\S]*)"\s*}/)?.[1];
+    if (summary !== undefined) return { summary };
+    throw error;
+  }
 }
