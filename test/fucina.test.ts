@@ -9,6 +9,7 @@ import { install, upgrade } from "../src/install.js";
 import { loadConfig } from "../src/config.js";
 import { runEvent } from "../src/run.js";
 import { agentCliPackage, parseFucinaJson } from "../src/agent.js";
+import { withRunLink } from "../src/comment.js";
 
 function tmpRepo() {
   const dir = mkdtempSync(join(tmpdir(), "fucina-"));
@@ -34,6 +35,10 @@ test("claudeCode installs the pinned Claude CLI package", () => {
 test("agent JSON parser tolerates multiline summary strings", () => {
   const parsed = parseFucinaJson('<fucina>{"summary":"first line\nsecond line"}</fucina>');
   assert.equal(parsed.summary, "first line\nsecond line");
+});
+
+test("success comments link the workflow run", () => {
+  assert.equal(withRunLink("done", "https://github.test/run/1"), "done\n\nWorkflow run: https://github.test/run/1");
 });
 
 test("install writes config and three least-privilege workflows without overwriting", () => {
@@ -127,7 +132,7 @@ test("run simulates a label-triggered explore action end to end", async () => {
   assert.deepEqual(calls[0], ["issue", "edit", "7", "--remove-label", "fucina:explore"]);
   assert.ok(calls.some((args) => args.join(" ").includes("--remove-label fucina:blocked")));
   assert.ok(calls.some((args) => args.join(" ").includes("--add-label fucina:in-progress")));
-  assert.ok(calls.some((args) => args[0] === "issue" && args[1] === "comment" && args.includes("Looks real")));
+  assert.ok(calls.some((args) => args[0] === "issue" && args[1] === "comment" && args.join("\n").includes("Looks real") && args.join("\n").includes("https://github.test/run/1")));
   assert.ok(calls.some((args) => args.join(" ").includes("--remove-label fucina:in-progress")));
 });
 
