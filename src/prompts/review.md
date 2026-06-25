@@ -1,1 +1,1 @@
-Review the PR. Fix concrete issues when useful, otherwise leave review comments. Run checks. Do not push.
+Review the PR read-only. Publish comments and a summary. Do not edit files, commit, or push. If changes are needed, explain them so the owner can add `fucina:address-feedback`.

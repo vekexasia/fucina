@@ -1,0 +1,41 @@
+name: Fucina Issue
+
+on:
+  issues:
+    types: [labeled]
+
+concurrency:
+  group: fucina-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+      issues: write
+      pull-requests: write
+      contents: write
+
+jobs:
+  fucina:
+    if: ${{ github.event.label.name == 'fucina:explore' || github.event.label.name == 'fucina:implement' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run Fucina
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
+          AGENT_PAT: ${{ secrets.AGENT_PAT }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          FUCINA_ALLOWED_ACTORS: ${{ vars.FUCINA_ALLOWED_ACTORS }}
+          FUCINA_AGENT: ${{ vars.FUCINA_AGENT }}
+          FUCINA_MODEL: ${{ vars.FUCINA_MODEL }}
+          FUCINA_AGENT_CLI_VERSION: ${{ vars.FUCINA_AGENT_CLI_VERSION }}
+          FUCINA_MAX_ITERATIONS: ${{ vars.FUCINA_MAX_ITERATIONS }}
+        run: |
+          npm ci
+          npm run build
+          node dist/cli.js run

@@ -1,0 +1,15 @@
+{
+  "agent": "claudeCode",
+  "model": "claude-sonnet-4-5",
+  "agentCliVersion": "2.1.178",
+  "maxIterations": 1,
+  "sensitiveInstructionPaths": [
+    ".fucina/**",
+    ".github/workflows/**",
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".claude/**",
+    ".codex/**",
+    ".pi/**"
+  ]
+}

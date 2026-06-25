@@ -1,5 +1,5 @@
 {
-  "name": "@vekex/fucina",
+  "name": "@vekexasia/fucina",
   "version": "0.0.0",
   "description": "Label-driven AI workflows for GitHub repositories.",
   "type": "module",
@@ -14,7 +14,8 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "dev": "tsx src/cli.ts"
+    "dev": "tsx src/cli.ts",
+    "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@ai-hero/sandcastle": "^0.10.0"
