@@ -150,6 +150,7 @@ test("implement sees issue comments and can succeed without commits", async () =
       prompt = agentPrompt;
       return { stdout: "<fucina>{\"summary\":\"Created follow-up issues\"}</fucina>", commits: [], branch: "main" };
     },
+    sh() { return "0"; },
     cwd: tmpRepo(),
   });
 
@@ -167,7 +168,7 @@ test("implement pushes the branch before creating a PR", async () => {
       return "https://github.test/pr/9";
     },
     agent: async () => ({ stdout: "<fucina>{\"summary\":\"Done\"}</fucina>", commits: [{ sha: "abc" }], branch: "main" }),
-    sh(args) { calls.push(["sh", ...args]); },
+    sh(args) { calls.push(["sh", ...args]); return args.includes("--count") ? "1" : ""; },
     cwd: tmpRepo(),
   });
 
