@@ -14,7 +14,7 @@ export function install(options: InstallOptions = {}) {
   const cwd = options.cwd ?? process.cwd();
   writeNew(join(cwd, ".fucina/config.json"), JSON.stringify({ agent: "", model: "", agentCliVersion: "", maxIterations: 1, sensitiveInstructionPaths: defaultSensitiveInstructionPaths }, null, 2) + "\n", options.force);
   writeNew(join(cwd, ".github/workflows/fucina-issue.yml"), workflow("issues", "issues: write\n      pull-requests: write\n      contents: write", ["fucina:explore", "fucina:implement"]), options.force);
-  writeNew(join(cwd, ".github/workflows/fucina-review.yml"), workflow("pull_request_target", "contents: read\n      pull-requests: write\n      issues: write", ["fucina:review"]), options.force);
+  writeNew(join(cwd, ".github/workflows/fucina-review.yml"), workflow("pull_request_target", "contents: read\n      pull-requests: write\n      issues: write", ["fucina:review"], false), options.force);
   writeNew(join(cwd, ".github/workflows/fucina-mutate.yml"), workflow("pull_request_target", "contents: write\n      pull-requests: write\n      issues: write", ["fucina:address-feedback"], false), options.force);
   writeNew(join(cwd, ".github/workflows/fucina-slash.yml"), slashWorkflow(), options.force);
   if (!options.skipLabels) installLabels();
@@ -27,7 +27,7 @@ export function upgrade(options: InstallOptions = {}) {
   const next = { ...{ agent: "", model: "", agentCliVersion: "", maxIterations: 1, sensitiveInstructionPaths: defaultSensitiveInstructionPaths }, ...current };
   writeNew(configPath, JSON.stringify(next, null, 2) + "\n", true);
   writeNew(join(cwd, ".github/workflows/fucina-issue.yml"), workflow("issues", "issues: write\n      pull-requests: write\n      contents: write", ["fucina:explore", "fucina:implement"]), true);
-  writeNew(join(cwd, ".github/workflows/fucina-review.yml"), workflow("pull_request_target", "contents: read\n      pull-requests: write\n      issues: write", ["fucina:review"]), true);
+  writeNew(join(cwd, ".github/workflows/fucina-review.yml"), workflow("pull_request_target", "contents: read\n      pull-requests: write\n      issues: write", ["fucina:review"], false), true);
   writeNew(join(cwd, ".github/workflows/fucina-mutate.yml"), workflow("pull_request_target", "contents: write\n      pull-requests: write\n      issues: write", ["fucina:address-feedback"], false), true);
   writeNew(join(cwd, ".github/workflows/fucina-slash.yml"), slashWorkflow(), true);
   if (!options.skipLabels) installLabels();

@@ -18,9 +18,6 @@ jobs:
     if: ${{ github.event.label.name == 'fucina:review' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -35,7 +32,4 @@ jobs:
           FUCINA_MODEL: ${{ vars.FUCINA_MODEL }}
           FUCINA_AGENT_CLI_VERSION: ${{ vars.FUCINA_AGENT_CLI_VERSION }}
           FUCINA_MAX_ITERATIONS: ${{ vars.FUCINA_MAX_ITERATIONS }}
-        run: |
-          npm ci
-          npm run build
-          node dist/cli.js run
+        run: npx @vekexasia/fucina@0.0.0 run

@@ -59,6 +59,7 @@ test("install writes config and three least-privilege workflows without overwrit
   assert.doesNotMatch(review, /contents: write/);
   assert.match(review, /pull-requests: write/);
   assert.match(mutate, /contents: write/);
+  assert.doesNotMatch(review, /actions\/checkout/);
   assert.match(issue + review + mutate, /npx @vekexasia\/fucina@0\.0\.0 run/);
 
   writeFileSync(configPath, "mine");
