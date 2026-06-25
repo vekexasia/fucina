@@ -217,7 +217,7 @@ test("implement pushes the branch before creating a PR", async () => {
   });
 
   assert.ok(calls.some((args) => args.join(" ") === "sh git checkout -B fucina/issue-2-add-thing"));
-  assert.ok(calls.some((args) => args.join(" ") === "sh git push --force origin fucina/issue-2-add-thing"));
+  assert.ok(calls.some((args) => args.join(" ") === "sh git push --force-with-lease origin fucina/issue-2-add-thing"));
   assert.ok(calls.some((args) => args[0] === "pr" && args[1] === "create"));
 });
 
@@ -445,6 +445,9 @@ test("address-feedback refuses success without commits or comments", async () =>
 });
 
 test("review rejects agent mutations", async () => {
+  const repo = tmpRepo();
+  mkdirSync(join(repo, ".fucina"));
+  writeFileSync(join(repo, ".fucina/config.json"), JSON.stringify({ agent: "pi", model: "test", agentCliVersion: "1.0.0" }));
   await assert.rejects(() => review({ label: "fucina:review", kind: "pull_request", number: 7, title: "Review", actor: "andrea", body: "" }, {
     gh(args) {
       const argsStr = args.join(" ");
@@ -453,11 +456,15 @@ test("review rejects agent mutations", async () => {
       return args[0] === "api" ? "diff" : "";
     },
     agent: async () => ({ stdout: "<fucina>{\"summary\":\"Looks good\"}</fucina>", commits: [{ sha: "bad" }], branch: "feature" }),
-    cwd: tmpRepo(),
+    cwd: repo,
   }), /must not mutate/);
+  rmSync(repo, { recursive: true, force: true });
 });
 
 test("review succeeds without inspecting a checkout", async () => {
+  const repo = tmpRepo();
+  mkdirSync(join(repo, ".fucina"));
+  writeFileSync(join(repo, ".fucina/config.json"), JSON.stringify({ agent: "pi", model: "test", agentCliVersion: "1.0.0" }));
   const calls: string[][] = [];
   await review({ label: "fucina:review", kind: "pull_request", number: 8, title: "Review", actor: "andrea", body: "" }, {
     gh(args) {
@@ -468,9 +475,10 @@ test("review succeeds without inspecting a checkout", async () => {
       return args[0] === "api" ? "diff" : "";
     },
     agent: async () => ({ stdout: "<fucina>{\"summary\":\"Looks good\"}</fucina>", commits: [], branch: "feature" }),
-    cwd: tmpRepo(),
+    cwd: repo,
   });
   assert.ok(calls.some((args) => args.join(" ") === "pr review 8 --comment --body Looks good"));
+  rmSync(repo, { recursive: true, force: true });
 });
 
 test("invalid label is blocked and cleaned up", async () => {
