@@ -156,3 +156,22 @@ test("implement sees issue comments and can succeed without commits", async () =
   assert.match(prompt, /create issues for leftovers/);
   assert.ok(calls.some((args) => args[0] === "issue" && args[1] === "comment" && args.includes("Created follow-up issues")));
 });
+
+test("implement pushes the branch before creating a PR", async () => {
+  const calls: string[][] = [];
+  await runEvent({ label: "fucina:implement", kind: "issue", number: 2, title: "Add thing", actor: "andrea", body: "Do it" }, {
+    gh(args) {
+      calls.push(args);
+      if (args[0] === "api" && args.at(-1) === ".permission") return "write";
+      if (args[0] === "issue" && args[1] === "view") return "";
+      return "https://github.test/pr/9";
+    },
+    agent: async () => ({ stdout: "<fucina>{\"summary\":\"Done\"}</fucina>", commits: [{ sha: "abc" }], branch: "main" }),
+    sh(args) { calls.push(["sh", ...args]); },
+    cwd: tmpRepo(),
+  });
+
+  assert.ok(calls.some((args) => args.join(" ") === "sh git checkout -B fucina/issue-2-add-thing"));
+  assert.ok(calls.some((args) => args.join(" ") === "sh git push --force origin fucina/issue-2-add-thing"));
+  assert.ok(calls.some((args) => args[0] === "pr" && args[1] === "create"));
+});
