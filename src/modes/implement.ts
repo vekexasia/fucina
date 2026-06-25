@@ -12,7 +12,10 @@ export async function implement(event: FucinaEvent, deps: { gh(args: string[]): 
   try { deps.gh(["issue", "reopen", String(event.number)]); } catch {}
   const sh = deps.sh ?? ((args: string[]) => execFileSync(args[0], args.slice(1), { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }));
   const commitsAhead = Number(sh(["git", "rev-list", "--count", "origin/main..HEAD"]).trim());
-  if (!result.commits.length || !Number.isFinite(commitsAhead) || commitsAhead === 0) throw new Error("Fucina implement produced no commits");
+  if (!result.commits.length || !Number.isFinite(commitsAhead) || commitsAhead === 0) {
+    deps.gh(["issue", "comment", String(event.number), "--body", withRunLink(parsed.summary, deps.runUrl)]);
+    return;
+  }
   const slug = event.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "work";
   const branch = `fucina/issue-${event.number}-${slug}`;
   sh(["git", "checkout", "-B", branch]);

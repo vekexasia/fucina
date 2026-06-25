@@ -386,9 +386,9 @@ test("implement retries malformed Fucina output and requires commits before PR c
   assert.ok(calls.some((args) => args[0] === "pr" && args[1] === "create"));
 });
 
-test("implement refuses PR creation when no commits exist", async () => {
+test("implement comments instead of creating a PR when no commits exist", async () => {
   const calls: string[][] = [];
-  await assert.rejects(() => runEvent({ label: "fucina:implement", kind: "issue", number: 4, title: "No commits", actor: "andrea", body: "Do it" }, {
+  await runEvent({ label: "fucina:implement", kind: "issue", number: 4, title: "No commits", actor: "andrea", body: "Do it" }, {
     gh(args) {
       calls.push(args);
       if (args[0] === "api" && args.at(-1) === ".permission") return "write";
@@ -396,11 +396,12 @@ test("implement refuses PR creation when no commits exist", async () => {
       if (args[0] === "issue" && args[1] === "view") return "";
       return "";
     },
-    agent: async () => ({ stdout: "<fucina>{\"summary\":\"Done\"}</fucina>", commits: [], branch: "main" }),
+    agent: async () => ({ stdout: "<fucina>{\"summary\":\"Did bookkeeping\"}</fucina>", commits: [], branch: "main" }),
     sh(args) { calls.push(["sh", ...args]); return args.includes("--count") ? "0" : ""; },
     cwd: tmpRepo(),
-  }), /produced no commits/);
+  });
   assert.equal(calls.some((args) => args[0] === "pr" && args[1] === "create"), false);
+  assert.ok(calls.some((args) => args[0] === "issue" && args[1] === "comment" && args.includes("Did bookkeeping")));
 });
 
 test("agent JSON parser validates output shape", () => {
@@ -442,4 +443,20 @@ test("review rejects agent mutations", async () => {
     agent: async () => ({ stdout: "<fucina>{\"summary\":\"Looks good\"}</fucina>", commits: [{ sha: "bad" }], branch: "feature" }),
     cwd: tmpRepo(),
   }), /must not mutate/);
+});
+
+test("review succeeds without inspecting a checkout", async () => {
+  const calls: string[][] = [];
+  await review({ label: "fucina:review", kind: "pull_request", number: 8, title: "Review", actor: "andrea", body: "" }, {
+    gh(args) {
+      calls.push(args);
+      const argsStr = args.join(" ");
+      if (argsStr.includes("/pulls/8/files")) return "[]";
+      if (argsStr.includes("/pulls/8") && argsStr.includes("--jq")) return JSON.stringify({ user: { login: "andrea" }, head: { sha: "abc" } });
+      return args[0] === "api" ? "diff" : "";
+    },
+    agent: async () => ({ stdout: "<fucina>{\"summary\":\"Looks good\"}</fucina>", commits: [], branch: "feature" }),
+    cwd: tmpRepo(),
+  });
+  assert.ok(calls.some((args) => args.join(" ") === "pr review 8 --comment --body Looks good"));
 });
