@@ -138,9 +138,14 @@ test("run simulates a label-triggered explore action end to end", async () => {
   assert.ok(calls.some((args) => args.join(" ").includes("--remove-label fucina:in-progress")));
 });
 
-test("implement sees issue comments and can succeed without commits", async () => {
-  const calls: string[][] = [];
+test("implement composes repository instructions in safety, global, mode order", async () => {
+  const repo = tmpRepo();
+  mkdirSync(join(repo, ".fucina/instructions"), { recursive: true });
+  writeFileSync(join(repo, ".fucina/instructions/safety.md"), "safety rules");
+  writeFileSync(join(repo, ".fucina/instructions/global.md"), "global rules");
+  writeFileSync(join(repo, ".fucina/instructions/implement.md"), "implement rules");
   let prompt = "";
+  const calls: string[][] = [];
   await runEvent({ label: "fucina:implement", kind: "issue", number: 1, title: "split leftovers", actor: "andrea", body: "Inspect gaps" }, {
     gh(args) {
       calls.push(args);
@@ -153,13 +158,34 @@ test("implement sees issue comments and can succeed without commits", async () =
       return { stdout: "<fucina>{\"summary\":\"Created follow-up issues\"}</fucina>", commits: [], branch: "main" };
     },
     sh() { return "0"; },
-    cwd: tmpRepo(),
+    cwd: repo,
   });
 
-  assert.match(prompt, /create issues for leftovers/);
+  assert.match(prompt, /Implement the issue with the smallest correct change/);
+  assert.ok(prompt.indexOf("safety rules") < prompt.indexOf("global rules"));
+  assert.ok(prompt.indexOf("global rules") < prompt.indexOf("implement rules"));
+  assert.ok(prompt.indexOf("implement rules") < prompt.indexOf("create issues for leftovers"));
   assert.match(prompt, /Do not close issue #1/);
   assert.ok(calls.some((args) => args.join(" ") === "issue reopen 1"));
   assert.ok(calls.some((args) => args[0] === "issue" && args[1] === "comment" && args.includes("Created follow-up issues")));
+  rmSync(repo, { recursive: true, force: true });
+});
+
+test("existing instruction paths must be markdown files", async () => {
+  const repo = tmpRepo();
+  mkdirSync(join(repo, ".fucina/instructions/safety.md"), { recursive: true });
+  const calls: string[][] = [];
+  await assert.rejects(() => runEvent({ label: "fucina:explore", kind: "issue", number: 3, title: "bad instructions", actor: "andrea", body: "" }, {
+    gh(args) {
+      calls.push(args);
+      if (args[0] === "api" && args.at(-1) === ".permission") return "write";
+      return "";
+    },
+    agent: async () => ({ stdout: "<fucina>{\"summary\":\"should not run\"}</fucina>", commits: [], branch: "main" }),
+    cwd: repo,
+  }), /Cannot load Fucina instruction .*safety\.md: is not a file/);
+  assert.ok(calls.some((args) => args[0] === "issue" && args[1] === "comment" && args.join("\n").includes("Cannot load Fucina instruction")));
+  rmSync(repo, { recursive: true, force: true });
 });
 
 test("implement pushes the branch before creating a PR", async () => {
