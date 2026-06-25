@@ -9,6 +9,8 @@ import { install, upgrade } from "../src/install.js";
 import { loadConfig } from "../src/config.js";
 import { runEvent } from "../src/run.js";
 import { agentCliPackage, parseFucinaJson } from "../src/agent.js";
+import { addressFeedback } from "../src/modes/address-feedback.js";
+import { review } from "../src/modes/review.js";
 import { withRunLink } from "../src/comment.js";
 import { matchesSensitivePaths, getSensitiveFiles } from "../src/sensitive-paths.js";
 
@@ -349,4 +351,95 @@ test("slash command workflow is generated during install", () => {
   assert.match(slashWorkflow, /startsWith\(github\.event\.comment\.body, '\/fucina '\)/);
   assert.match(slashWorkflow, /concurrency:[\s\S]*group: fucina-\$\{\{ github.repository \}\}/);
   rmSync(repo, { recursive: true, force: true });
+});
+
+test("implement rejects closed issues before running the agent", async () => {
+  let agentRan = false;
+  await assert.rejects(() => runEvent({ label: "fucina:implement", kind: "issue", number: 1, title: "split leftovers", actor: "andrea", body: "Inspect gaps" }, {
+    gh(args) {
+      if (args[0] === "api" && args.at(-1) === ".permission") return "write";
+      if (args[0] === "issue" && args[1] === "view" && args.includes("state")) return "CLOSED";
+      return "";
+    },
+    agent: async () => { agentRan = true; return { stdout: "<fucina>{\"summary\":\"Done\"}</fucina>", commits: [], branch: "main" }; },
+    cwd: tmpRepo(),
+  }), /issue #1 is not open/);
+  assert.equal(agentRan, false);
+});
+
+test("implement retries malformed Fucina output and requires commits before PR creation", async () => {
+  const calls: string[][] = [];
+  let attempts = 0;
+  await runEvent({ label: "fucina:implement", kind: "issue", number: 3, title: "Retry output", actor: "andrea", body: "Do it" }, {
+    gh(args) {
+      calls.push(args);
+      if (args[0] === "api" && args.at(-1) === ".permission") return "write";
+      if (args[0] === "issue" && args[1] === "view" && args.includes("state")) return "OPEN";
+      if (args[0] === "issue" && args[1] === "view") return "";
+      return "https://github.test/pr/9";
+    },
+    agent: async () => ({ stdout: ++attempts === 1 ? "<fucina>{nope}</fucina>" : "<fucina>{\"summary\":\"Done\"}</fucina>", commits: [{ sha: "abc" }], branch: "main" }),
+    sh(args) { calls.push(["sh", ...args]); return args.includes("--count") ? "1" : ""; },
+    cwd: tmpRepo(),
+  });
+  assert.equal(attempts, 2);
+  assert.ok(calls.some((args) => args[0] === "pr" && args[1] === "create"));
+});
+
+test("implement refuses PR creation when no commits exist", async () => {
+  const calls: string[][] = [];
+  await assert.rejects(() => runEvent({ label: "fucina:implement", kind: "issue", number: 4, title: "No commits", actor: "andrea", body: "Do it" }, {
+    gh(args) {
+      calls.push(args);
+      if (args[0] === "api" && args.at(-1) === ".permission") return "write";
+      if (args[0] === "issue" && args[1] === "view" && args.includes("state")) return "OPEN";
+      if (args[0] === "issue" && args[1] === "view") return "";
+      return "";
+    },
+    agent: async () => ({ stdout: "<fucina>{\"summary\":\"Done\"}</fucina>", commits: [], branch: "main" }),
+    sh(args) { calls.push(["sh", ...args]); return args.includes("--count") ? "0" : ""; },
+    cwd: tmpRepo(),
+  }), /produced no commits/);
+  assert.equal(calls.some((args) => args[0] === "pr" && args[1] === "create"), false);
+});
+
+test("agent JSON parser validates output shape", () => {
+  assert.throws(() => parseFucinaJson("<fucina>{\"summary\":1}</fucina>"), /summary must be a string/);
+});
+
+test("address-feedback pushes with force-with-lease against starting SHA", async () => {
+  const calls: string[][] = [];
+  await addressFeedback({ label: "fucina:address-feedback", kind: "pull_request", number: 5, title: "Feedback", actor: "andrea", body: "" }, {
+    gh(args) {
+      calls.push(args);
+      if (args[0] === "pr" && args[1] === "view" && args.includes("--json")) return JSON.stringify({ isCrossRepository: false, headRefName: "feature", headRefOid: "abc123" });
+      return "comments";
+    },
+    agent: async () => ({ stdout: "<fucina>{\"summary\":\"Fixed\"}</fucina>", commits: [{ sha: "def" }], branch: "feature" }),
+    sh(args) { calls.push(["sh", ...args]); return ""; },
+  });
+  assert.ok(calls.some((args) => args.join(" ") === "sh git push --force-with-lease=feature:abc123 origin HEAD:feature"));
+});
+
+test("address-feedback refuses success without commits or comments", async () => {
+  await assert.rejects(() => addressFeedback({ label: "fucina:address-feedback", kind: "pull_request", number: 6, title: "Feedback", actor: "andrea", body: "" }, {
+    gh(args) {
+      if (args[0] === "pr" && args[1] === "view" && args.includes("--json")) return JSON.stringify({ isCrossRepository: false, headRefName: "feature", headRefOid: "abc123" });
+      return "comments";
+    },
+    agent: async () => ({ stdout: "<fucina>{\"summary\":\"\"}</fucina>", commits: [], branch: "feature" }),
+  }), /produced no useful commit or comment/);
+});
+
+test("review rejects agent mutations", async () => {
+  await assert.rejects(() => review({ label: "fucina:review", kind: "pull_request", number: 7, title: "Review", actor: "andrea", body: "" }, {
+    gh(args) {
+      const argsStr = args.join(" ");
+      if (argsStr.includes("/pulls/7/files")) return "[]";
+      if (argsStr.includes("/pulls/7") && argsStr.includes("--jq")) return JSON.stringify({ user: { login: "andrea" }, head: { sha: "abc" } });
+      return args[0] === "api" ? "diff" : "";
+    },
+    agent: async () => ({ stdout: "<fucina>{\"summary\":\"Looks good\"}</fucina>", commits: [{ sha: "bad" }], branch: "feature" }),
+    cwd: tmpRepo(),
+  }), /must not mutate/);
 });

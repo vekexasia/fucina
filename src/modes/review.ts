@@ -1,4 +1,4 @@
-import { parseFucinaJson, runAgent, type AgentResult } from "../agent.js";
+import { runAgent, runFucinaAgent, type AgentResult } from "../agent.js";
 import type { FucinaEvent } from "../event.js";
 import { withRunLink } from "../comment.js";
 import { loadConfig } from "../config.js";
@@ -23,8 +23,9 @@ export async function review(event: FucinaEvent, deps: { gh(args: string[]): str
   }
 
   const diff = deps.gh(["api", `repos/${process.env.GITHUB_REPOSITORY}/pulls/${event.number}`, "--header", "Accept: application/vnd.github.v3.diff"]);
-  const result = parseFucinaJson((await deps.agent(`Review PR #${event.number}: ${event.title}\n\nDiff:\n${diff}\n\nReturn <fucina>{"summary":"..."}</fucina>.`)).stdout);
-  deps.gh(["pr", "review", String(event.number), "--comment", "--body", withRunLink(String(result.summary), deps.runUrl)]);
+  const { result, parsed } = await runFucinaAgent(deps.agent, `Review PR #${event.number}: ${event.title}\n\nDiff:\n${diff}\n\nReturn <fucina>{"summary":"..."}</fucina>.`);
+  if (result.commits.length) throw new Error("Fucina review must not mutate files, commit, or push");
+  deps.gh(["pr", "review", String(event.number), "--comment", "--body", withRunLink(parsed.summary, deps.runUrl)]);
 }
 
 export async function reviewDefault(event: FucinaEvent) {
