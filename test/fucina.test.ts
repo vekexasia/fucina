@@ -13,12 +13,24 @@ import { addressFeedback } from "../src/modes/address-feedback.js";
 import { review } from "../src/modes/review.js";
 import { withRunLink } from "../src/comment.js";
 import { matchesSensitivePaths, getSensitiveFiles } from "../src/sensitive-paths.js";
+import { assertAuthorizedWithGh } from "../src/auth.js";
 
 function tmpRepo() {
   const dir = mkdtempSync(join(tmpdir(), "fucina-"));
   mkdirSync(join(dir, ".git"));
   return dir;
 }
+
+test("authorization accepts explicit allowed actors without gh", () => {
+  const old = { ...process.env };
+  process.env.FUCINA_ALLOWED_ACTORS = "andrea";
+  try {
+    assertAuthorizedWithGh({ label: "fucina:explore", kind: "issue", number: 1, title: "x", actor: "andrea", body: "" }, () => { throw new Error("gh should not run"); });
+    assert.throws(() => assertAuthorizedWithGh({ label: "fucina:explore", kind: "issue", number: 1, title: "x", actor: "mallory", body: "" }, () => ""), /mallory is not allowed/);
+  } finally {
+    process.env = old;
+  }
+});
 
 test("MVP labels contain only fucina operational labels", () => {
   assert.deepEqual(labels.map(([name]) => name), [
@@ -459,4 +471,19 @@ test("review succeeds without inspecting a checkout", async () => {
     cwd: tmpRepo(),
   });
   assert.ok(calls.some((args) => args.join(" ") === "pr review 8 --comment --body Looks good"));
+});
+
+test("invalid label is blocked and cleaned up", async () => {
+  const calls: string[][] = [];
+  await assert.rejects(() => runEvent({ label: "fucina:unknown", kind: "issue", number: 9, title: "bad label", actor: "andrea", body: "" }, {
+    gh(args) {
+      calls.push(args);
+      if (args[0] === "api" && args.at(-1) === ".permission") return "write";
+      return "";
+    },
+    agent: async () => ({ stdout: "<fucina>{\"summary\":\"nope\"}</fucina>", commits: [], branch: "main" }),
+    cwd: tmpRepo(),
+  }), /fucina:unknown is not valid for issue/);
+  assert.ok(calls.some((args) => args.join(" ") === "issue edit 9 --add-label fucina:blocked"));
+  assert.ok(calls.some((args) => args.join(" ") === "issue edit 9 --remove-label fucina:in-progress"));
 });
