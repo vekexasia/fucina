@@ -130,3 +130,24 @@ test("run simulates a label-triggered explore action end to end", async () => {
   assert.ok(calls.some((args) => args[0] === "issue" && args[1] === "comment" && args.includes("Looks real")));
   assert.ok(calls.some((args) => args.join(" ").includes("--remove-label fucina:in-progress")));
 });
+
+test("implement sees issue comments and can succeed without commits", async () => {
+  const calls: string[][] = [];
+  let prompt = "";
+  await runEvent({ label: "fucina:implement", kind: "issue", number: 1, title: "split leftovers", actor: "andrea", body: "Inspect gaps" }, {
+    gh(args) {
+      calls.push(args);
+      if (args[0] === "api" && args.at(-1) === ".permission") return "write";
+      if (args[0] === "issue" && args[1] === "view" && args.includes("--comments")) return "maintainer: create issues for leftovers";
+      return "";
+    },
+    agent: async (agentPrompt) => {
+      prompt = agentPrompt;
+      return { stdout: "<fucina>{\"summary\":\"Created follow-up issues\"}</fucina>", commits: [], branch: "main" };
+    },
+    cwd: tmpRepo(),
+  });
+
+  assert.match(prompt, /create issues for leftovers/);
+  assert.ok(calls.some((args) => args[0] === "issue" && args[1] === "comment" && args.includes("Created follow-up issues")));
+});
