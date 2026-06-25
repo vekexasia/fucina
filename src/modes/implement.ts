@@ -6,8 +6,9 @@ import { withRunLink } from "../comment.js";
 export async function implement(event: FucinaEvent, deps: { gh(args: string[]): string; agent(prompt: string): Promise<AgentResult>; sh?(args: string[]): string; runUrl?: string }) {
   if (event.kind !== "issue") throw new Error("fucina:implement only runs on issues");
   const comments = deps.gh(["issue", "view", String(event.number), "--comments"]);
-  const result = await deps.agent(`Implement issue #${event.number}: ${event.title}\n\nIssue body:\n${event.body ?? ""}\n\nIssue comments:\n${comments}\n\nIf the requested work is GitHub-side bookkeeping, do it with gh and return a summary. Return <fucina>{"summary":"..."}</fucina>.`);
+  const result = await deps.agent(`Implement issue #${event.number}: ${event.title}\n\nIssue body:\n${event.body ?? ""}\n\nIssue comments:\n${comments}\n\nIf the requested work is GitHub-side bookkeeping, do it with gh and return a summary. Do not close issue #${event.number}; Fucina relies on PR merge/Closes for closure. Return <fucina>{"summary":"..."}</fucina>.`);
   const parsed = parseFucinaJson(result.stdout);
+  try { deps.gh(["issue", "reopen", String(event.number)]); } catch {}
   const sh = deps.sh ?? ((args: string[]) => execFileSync(args[0], args.slice(1), { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }));
   const commitsAhead = Number(sh(["git", "rev-list", "--count", "origin/main..HEAD"]).trim());
   if (!Number.isFinite(commitsAhead) || commitsAhead === 0) {

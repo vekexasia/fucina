@@ -155,6 +155,8 @@ test("implement sees issue comments and can succeed without commits", async () =
   });
 
   assert.match(prompt, /create issues for leftovers/);
+  assert.match(prompt, /Do not close issue #1/);
+  assert.ok(calls.some((args) => args.join(" ") === "issue reopen 1"));
   assert.ok(calls.some((args) => args[0] === "issue" && args[1] === "comment" && args.includes("Created follow-up issues")));
 });
 
