@@ -19,6 +19,10 @@ export async function run() {
 }
 
 export async function runEvent(event: FucinaEvent, deps: Deps) {
+  if (event.label.startsWith("/fucina ")) {
+    return await runSlashCommand(event, deps);
+  }
+
   const target = event.kind === "issue" ? "issue" : "pr";
   deps.gh([target, "edit", String(event.number), "--remove-label", event.label]);
   try {
@@ -38,5 +42,25 @@ export async function runEvent(event: FucinaEvent, deps: Deps) {
     throw error;
   } finally {
     deps.gh([target, "edit", String(event.number), "--remove-label", "fucina:in-progress"]);
+  }
+}
+
+async function runSlashCommand(event: FucinaEvent, deps: Deps) {
+  const target = event.kind === "issue" ? "issue" : "pr";
+  try {
+    assertAuthorizedWithGh(event, deps.gh);
+    const parts = event.label.split(/\s+/);
+    const command = parts[1];
+    if (command === "trust-instructions") {
+      const sha = parts[2];
+      if (!sha || sha.length !== 40) throw new Error("trust-instructions requires a full 40-character SHA");
+      const { trustInstructions } = await import("./modes/trust-instructions.js");
+      return await trustInstructions(event, sha, deps);
+    }
+    throw new Error(`Unknown slash command: ${command}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    deps.gh([target, "comment", String(event.number), "--body", `Fucina slash command failed.\n\nReason: ${message}\n${deps.runUrl ? `\nRun: ${deps.runUrl}` : ""}`]);
+    throw error;
   }
 }

@@ -16,6 +16,7 @@ export function install(options: InstallOptions = {}) {
   writeNew(join(cwd, ".github/workflows/fucina-issue.yml"), workflow("issues", "issues: write\n      pull-requests: write\n      contents: write", ["fucina:explore", "fucina:implement"]), options.force);
   writeNew(join(cwd, ".github/workflows/fucina-review.yml"), workflow("pull_request_target", "contents: read\n      pull-requests: write\n      issues: write", ["fucina:review"]), options.force);
   writeNew(join(cwd, ".github/workflows/fucina-mutate.yml"), workflow("pull_request_target", "contents: write\n      pull-requests: write\n      issues: write", ["fucina:address-feedback"], false), options.force);
+  writeNew(join(cwd, ".github/workflows/fucina-slash.yml"), slashWorkflow(), options.force);
   if (!options.skipLabels) installLabels();
 }
 
@@ -28,6 +29,7 @@ export function upgrade(options: InstallOptions = {}) {
   writeNew(join(cwd, ".github/workflows/fucina-issue.yml"), workflow("issues", "issues: write\n      pull-requests: write\n      contents: write", ["fucina:explore", "fucina:implement"]), true);
   writeNew(join(cwd, ".github/workflows/fucina-review.yml"), workflow("pull_request_target", "contents: read\n      pull-requests: write\n      issues: write", ["fucina:review"]), true);
   writeNew(join(cwd, ".github/workflows/fucina-mutate.yml"), workflow("pull_request_target", "contents: write\n      pull-requests: write\n      issues: write", ["fucina:address-feedback"], false), true);
+  writeNew(join(cwd, ".github/workflows/fucina-slash.yml"), slashWorkflow(), true);
   if (!options.skipLabels) installLabels();
 }
 
@@ -73,6 +75,40 @@ ${checkout ? `      - uses: actions/checkout@v4
           FUCINA_MODEL: \${{ vars.FUCINA_MODEL }}
           FUCINA_AGENT_CLI_VERSION: \${{ vars.FUCINA_AGENT_CLI_VERSION }}
           FUCINA_MAX_ITERATIONS: \${{ vars.FUCINA_MAX_ITERATIONS }}
+        run: npx @vekexasia/fucina@${version} run
+`;
+}
+
+function slashWorkflow() {
+  return `name: Fucina Slash Command
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: fucina-\${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+jobs:
+  fucina:
+    if: \${{ startsWith(github.event.comment.body, '/fucina ') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run Fucina Slash Command
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: \${{ secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
+          AGENT_PAT: \${{ secrets.AGENT_PAT }}
+          FUCINA_ALLOWED_ACTORS: \${{ vars.FUCINA_ALLOWED_ACTORS }}
         run: npx @vekexasia/fucina@${version} run
 `;
 }
