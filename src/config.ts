@@ -1,12 +1,20 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+export type ScheduledPrompt = {
+  name: string;
+  schedule: string;
+  mode: "explore" | "implement";
+  prompt: string;
+};
+
 export type FucinaConfig = {
   agent: "claudeCode" | "codex" | "pi";
   model: string;
   agentCliVersion: string;
   maxIterations: number;
   sensitiveInstructionPaths: string[];
+  scheduledPrompts?: ScheduledPrompt[];
 };
 
 export const defaultSensitiveInstructionPaths = [".fucina/**", ".github/workflows/**", "AGENTS.md", "CLAUDE.md", ".claude/**", ".codex/**", ".pi/**"];

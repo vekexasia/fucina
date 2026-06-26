@@ -2,11 +2,12 @@ import { readFileSync } from "node:fs";
 
 export type FucinaEvent = {
   label: string;
-  kind: "issue" | "pull_request";
+  kind: "issue" | "pull_request" | "schedule";
   number: number;
   title: string;
   actor: string;
   body?: string;
+  scheduleName?: string;
 };
 
 export function readEvent(): FucinaEvent {
@@ -14,6 +15,20 @@ export function readEvent(): FucinaEvent {
   if (!path) throw new Error("GITHUB_EVENT_PATH is missing");
 
   const event = JSON.parse(readFileSync(path, "utf8"));
+
+  // Handle scheduled events (workflow_dispatch or schedule)
+  const scheduleName = process.env.FUCINA_SCHEDULE_NAME;
+  if (scheduleName && (event.schedule || event.workflow_dispatch)) {
+    return {
+      label: `fucina:schedule:${scheduleName}`,
+      kind: "schedule",
+      number: 0,
+      title: `Scheduled: ${scheduleName}`,
+      actor: "fucina-schedule",
+      scheduleName,
+    };
+  }
+
   const actor = event.sender?.login;
   if (typeof actor !== "string") throw new Error("Event has no sender login");
 
