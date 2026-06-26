@@ -7,6 +7,7 @@ import { explore } from "./modes/explore.js";
 import { addressFeedback } from "./modes/address-feedback.js";
 import { implement } from "./modes/implement.js";
 import { review } from "./modes/review.js";
+import { schedule } from "./modes/schedule.js";
 
 type Deps = {
   gh(args: string[]): string;
@@ -22,6 +23,14 @@ export async function run() {
 export async function runEvent(event: FucinaEvent, deps: Deps) {
   if (event.label.startsWith("/fucina ")) {
     return await runSlashCommand(event, deps);
+  }
+
+  // Handle scheduled events separately (no labels, no issue/PR tracking)
+  if (event.kind === "schedule") {
+    const mode = event.scheduleName ? (await import("./config.js")).loadConfig(deps.cwd).scheduledPrompts?.find((sp) => sp.name === event.scheduleName)?.mode : undefined;
+    if (!mode) throw new Error(`No mode found for scheduled prompt: ${event.scheduleName}`);
+    const modeDeps = { ...deps, agent: (prompt: string) => deps.agent(composeAgentPrompt(mode, prompt, deps.cwd)) };
+    return await schedule(event, modeDeps);
   }
 
   const target = event.kind === "issue" ? "issue" : "pr";

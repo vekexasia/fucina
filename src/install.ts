@@ -17,6 +17,7 @@ export function install(options: InstallOptions = {}) {
   writeNew(join(cwd, ".github/workflows/fucina-review.yml"), workflow("pull_request_target", "contents: read\n      pull-requests: write\n      issues: write", ["fucina:review"], false), options.force);
   writeNew(join(cwd, ".github/workflows/fucina-mutate.yml"), workflow("pull_request_target", "contents: write\n      pull-requests: write\n      issues: write", ["fucina:address-feedback"], false), options.force);
   writeNew(join(cwd, ".github/workflows/fucina-slash.yml"), slashWorkflow(), options.force);
+  writeNew(join(cwd, ".github/workflows/fucina-schedule.yml"), scheduleWorkflow(), options.force);
   if (!options.skipLabels) installLabels();
 }
 
@@ -30,6 +31,7 @@ export function upgrade(options: InstallOptions = {}) {
   writeNew(join(cwd, ".github/workflows/fucina-review.yml"), workflow("pull_request_target", "contents: read\n      pull-requests: write\n      issues: write", ["fucina:review"], false), true);
   writeNew(join(cwd, ".github/workflows/fucina-mutate.yml"), workflow("pull_request_target", "contents: write\n      pull-requests: write\n      issues: write", ["fucina:address-feedback"], false), true);
   writeNew(join(cwd, ".github/workflows/fucina-slash.yml"), slashWorkflow(), true);
+  writeNew(join(cwd, ".github/workflows/fucina-schedule.yml"), scheduleWorkflow(), true);
   if (!options.skipLabels) installLabels();
 }
 
@@ -109,6 +111,55 @@ jobs:
           GH_TOKEN: \${{ secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
           AGENT_PAT: \${{ secrets.AGENT_PAT }}
           FUCINA_ALLOWED_ACTORS: \${{ vars.FUCINA_ALLOWED_ACTORS }}
+        run: npx @vekexasia/fucina@${version} run
+`;
+}
+
+function scheduleWorkflow() {
+  return `# Fucina Scheduled Prompts
+# This file is a template. To use scheduled prompts:
+# 1. Add scheduledPrompts to .fucina/config.json
+# 2. Generate per-schedule workflows with: npx @vekexasia/fucina generate-schedules
+
+name: Fucina Schedule (Template)
+
+on:
+  workflow_dispatch:
+    inputs:
+      schedule_name:
+        description: 'Name of the scheduled prompt to run'
+        required: true
+        type: string
+
+concurrency:
+  group: fucina-\${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+      contents: write
+      pull-requests: write
+
+jobs:
+  fucina-schedule:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run Fucina Scheduled Prompt
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: \${{ secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
+          AGENT_PAT: \${{ secrets.AGENT_PAT }}
+          CLAUDE_CODE_OAUTH_TOKEN: \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          FUCINA_AGENT: \${{ vars.FUCINA_AGENT }}
+          FUCINA_MODEL: \${{ vars.FUCINA_MODEL }}
+          FUCINA_AGENT_CLI_VERSION: \${{ vars.FUCINA_AGENT_CLI_VERSION }}
+          FUCINA_MAX_ITERATIONS: \${{ vars.FUCINA_MAX_ITERATIONS }}
+          FUCINA_SCHEDULE_NAME: \${{ github.event.inputs.schedule_name }}
         run: npx @vekexasia/fucina@${version} run
 `;
 }
