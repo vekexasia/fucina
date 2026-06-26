@@ -1,8 +1,12 @@
 {
   "name": "@vekexasia/fucina",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Label-driven AI workflows for GitHub repositories.",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vekexasia/fucina.git"
+  },
   "bin": {
     "fucina": "dist/cli.js"
   },
